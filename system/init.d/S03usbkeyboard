@@ -1,0 +1,69 @@
+#!/bin/sh
+# kvmhwd hid keyboard only
+
+start_usb_dev(){
+    . /etc/profile
+    echo "usb mode: device"
+    cd /sys/kernel/config/usb_gadget
+
+    mkdir g0
+    cd g0
+
+    echo 0x0001 > bcdUSB
+    echo 0x0102 > bcdDevice
+    echo 0x05ac > idVendor
+    echo 0x0202 > idProduct
+    echo 0x08 > bMaxPacketSize0
+    mkdir strings/0x409
+    echo 'Alps Electric' > strings/0x409/manufacturer
+    echo 'Apple USB Keyboard' > strings/0x409/product
+
+    mkdir configs/c.1
+    echo 0xA0 > configs/c.1/bmAttributes
+    echo 50 > configs/c.1/MaxPower
+    mkdir configs/c.1/strings/0x409
+    # echo "NanoKVM" >  configs/c.1/strings/0x409/configuration
+
+    # keyboard
+    mkdir functions/hid.GS0
+    echo 1 > functions/hid.GS0/subclass
+    if [ ! -e /boot/usb.notwakeup ]
+    then
+        echo 1 > functions/hid.GS0/wakeup_on_write
+    fi
+    echo 1 > functions/hid.GS0/protocol
+    echo 8 > functions/hid.GS0/report_length
+    echo -ne \\x05\\x01\\x09\\x06\\xa1\\x01\\x05\\x07\\x19\\xe0\\x29\\xe7\\x15\\x00\\x25\\x01\\x75\\x01\\x95\\x08\\x81\\x02\\x95\\x01\\x75\\x08\\x81\\x03\\x95\\x05\\x75\\x01\\x05\\x08\\x19\\x01\\x29\\x05\\x91\\x02\\x95\\x01\\x75\\x03\\x91\\x03\\x95\\x06\\x75\\x08\\x15\\x00\\x25\\x65\\x05\\x07\\x19\\x00\\x29\\x65\\x81\\x00\\xc0 > functions/hid.GS0/report_desc
+    ln -s functions/hid.GS0 configs/c.1
+
+    ls /sys/class/udc/ | cat > UDC
+    echo device > /proc/cviusb/otg_role
+}
+
+start_usb_host(){
+    echo '' > /sys/kernel/config/usb_gadget/g0/UDC
+    echo host > /proc/cviusb/otg_role
+}
+
+restart_usb_dev(){
+    echo > /sys/kernel/config/usb_gadget/g0/UDC
+    sleep 1
+    ls /sys/class/udc/ | cat > /sys/kernel/config/usb_gadget/g0/UDC
+    echo "USB Restart OK!"
+}
+
+case "$1" in
+  start)
+    start_usb_dev
+  ;;
+  restart)
+    restart_usb_dev
+  ;;
+  stop)
+    start_usb_host
+  ;;
+  stop_start)
+    start_usb_host
+    start_usb_dev
+  ;;
+esac
